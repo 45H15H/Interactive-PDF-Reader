@@ -33,6 +33,11 @@ with st.sidebar:
         else:
             st.success("Proceed to use the app!", icon = '✅')
 
+        st.subheader('Parameters')
+
+        chunk_size = st.sidebar.slider(':blue[Chunk Size]', min_value=50, max_value=1000, value = 200, step = 10, help = 'Determines the size of each chunk that the text will be split into.' , disabled=not api_key)
+        chunk_overlap = st.sidebar.slider(':blue[Chunk Overlap]', min_value=0, max_value=100, value=20, step=10, help = 'This parameter determines the number of tokens that will overlap between each chunk.', disabled=not api_key)
+
 # LangChain Training
 # LLM
 from langchain_google_genai import GoogleGenerativeAI as genai
