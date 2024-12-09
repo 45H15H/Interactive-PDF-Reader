@@ -43,7 +43,7 @@ with st.sidebar:
 from langchain_google_genai import GoogleGenerativeAI as genai
 
 # Document Loader
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 
 # Splitter
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -55,7 +55,7 @@ from transformers import GPT2TokenizerFast
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 # Vector DataBase
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 
 
 col1, col2 = st.columns(spec=[0.55, 0.45], gap="medium")
