@@ -12,6 +12,10 @@ from PIL import Image
 
 from openai import OpenAI
 
+# Initialize session state for chat history if it doesn't exist
+if 'messages' not in st.session_state:
+    st.session_state.messages = []
+
 endpoint = "https://models.inference.ai.azure.com"
 model_name = "gpt-4o"
 
@@ -34,7 +38,7 @@ with st.sidebar:
                               use_container_width=True)
         st.caption(
         "To use this app, you need an API key. "
-        "You can get one [here](https://ai.google.dev/)."
+        "You can get one [here](https://github.com/marketplace/models)."
         )
 
         if not api_key:
@@ -42,12 +46,15 @@ with st.sidebar:
         else:
             st.success("Proceed to use the app!", icon = '✅')
 
-        st.subheader('Parameters')
+        # st.subheader('Parameters')
 
-        chunk_size = st.sidebar.slider(':blue[Chunk Size]', min_value=50, max_value=1000, value = 200, step = 10, help = 'Determines the size of each chunk that the text will be split into.' , disabled=not api_key)
-        chunk_overlap = st.sidebar.slider(':blue[Chunk Overlap]', min_value=0, max_value=100, value=20, step=10, help = 'This parameter determines the number of tokens that will overlap between each chunk.', disabled=not api_key)
+        # chunk_size = st.sidebar.slider(':blue[Chunk Size]', min_value=50, max_value=1000, value = 200, step = 10, help = 'Determines the size of each chunk that the text will be split into.' , disabled=not api_key)
+        # chunk_overlap = st.sidebar.slider(':blue[Chunk Overlap]', min_value=0, max_value=100, value=20, step=10, help = 'This parameter determines the number of tokens that will overlap between each chunk.', disabled=not api_key)
 
 col1, col2 = st.columns(spec=[0.55, 0.45], gap="medium")
+
+if 'total_pages' not in st.session_state:
+    st.session_state.total_pages = 0
 
 with col1:
     # Subheader
@@ -59,68 +66,103 @@ with col1:
                                accept_multiple_files=True,
                                disabled=not api_key
                                )
-
-    question = st.text_input(label="Ask a question from the PDF:", value=None, max_chars=None, key="question", type="default", on_change=None, disabled=not uploaded_files, label_visibility="visible")
-
-   
-    if st.button("Process") and uploaded_files is not None:
+        
+    # Get total pages when file is uploaded
+    if uploaded_files:
         for uploaded_file in uploaded_files:
-            # Save the uploaded file to a temporary location
-            fd, path = tempfile.mkstemp()
-            with os.fdopen(fd, 'wb') as tmp:
-                tmp.write(uploaded_file.getvalue())
+            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+                st.session_state.total_pages = doc.page_count
+            uploaded_file.seek(0)  # Reset file pointer
+    
+    # Update number input with max value validation
+    if st.session_state.total_pages > 0:
+        number = st.number_input(
+            "Enter page number",
+            min_value=1,
+            max_value=st.session_state.total_pages,
+            value=1,
+            help=f"Enter a page number between 1 and {st.session_state.total_pages}"
+        )
+    else:
+        st.info("Upload a PDF to view pages")
+    
+    st.divider()
 
-            pdf_document = fitz.open(path)
-            page = pdf_document.load_page(1 - 1)  # input is one-indexed
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    # Display chat history
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.write(message["content"])
 
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
+# Chat input
+    if prompt := st.chat_input("Ask a question about the document", disabled=not uploaded_files):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message('user'):
+            st.write(prompt)
+        
+        if uploaded_files:
+            # Process documents
+            for uploaded_file in uploaded_files:
+                fd, path = tempfile.mkstemp()
+                with os.fdopen(fd, 'wb') as tmp:
+                    tmp.write(uploaded_file.getvalue())
 
-            base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                pdf_document = fitz.open(path)
+                page = pdf_document.load_page(number - 1)
+                pix = page.get_pixmap()
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                
+                buffer = io.BytesIO()
+                img.save(buffer, format="PNG")
+                base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            # Large Language Model
-            client = OpenAI(
-                base_url=endpoint,
-                api_key=api_key,
-            )
+                # Initialize OpenAI client
+                client = OpenAI(
+                    base_url=endpoint,
+                    api_key=api_key,
+                )
 
-            query = question
+                # Prepare conversation history
+                conversation_history = [msg for msg in st.session_state.messages]
 
-            response = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that describes images in details.",
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": query,
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}",
-                                    "detail": "low"
+                # Generate response
+                response = client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that describes images and maintains conversation context.",
+                        },
+                        *conversation_history,
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                        "detail": "low"
+                                    },
                                 },
-                            },
-                        ],
-                    },
-                ],
-                model=model_name,
-            )
+                            ],
+                        },
+                    ],
+                    model=model_name,
+                )
 
-            # stream response
-            def stream_data():
-                for word in response.choices[0].message.content.split(" "):
-                    yield word + " "
-                    time.sleep(0.02)
+                # Display response
+                assistant_response = response.choices[0].message.content
+                st.session_state.messages.append({"role": "assistant", "content": assistant_response})
 
-            st.write_stream(stream_data)
+                with st.chat_message("assistant"):
+                    def stream_response():
+                        for word in assistant_response.split():
+                            yield word + " "
+                            time.sleep(0.02)
+                    st.write_stream(stream_response)
+
+
 
             
 
