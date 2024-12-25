@@ -30,7 +30,7 @@ st.set_page_config(
 with st.sidebar:
     with st.form(key='api_form'):
         st.markdown("""
-        Enter your Gemini API key :red[*]
+        Enter your OpenAI API key :red[*]
         """)
         api_key = st.text_input("Enter your Gemini API key:", type='password', key = 'token', label_visibility='collapsed')
         st.form_submit_button("SUBMIT",
@@ -163,7 +163,7 @@ with col1:
                     # Display streaming response with markdown formatting
                     response_placeholder = st.empty()
                     full_response = ''
-                    
+
                     for chunk in stream_response():
                         full_response += chunk
                         response_placeholder.markdown(full_response)
