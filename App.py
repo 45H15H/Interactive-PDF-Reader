@@ -160,7 +160,13 @@ with col1:
                         for word in assistant_response.split():
                             yield word + " "
                             time.sleep(0.02)
-                    st.write_stream(stream_response)
+                    # Display streaming response with markdown formatting
+                    response_placeholder = st.empty()
+                    full_response = ''
+                    
+                    for chunk in stream_response():
+                        full_response += chunk
+                        response_placeholder.markdown(full_response)
 
 
 
