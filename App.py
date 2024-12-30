@@ -45,10 +45,11 @@ with st.sidebar:
         else:
             st.success("Proceed to use the app!", icon = '✅')
 
-        # st.subheader('Parameters')
+    st.subheader('Parameters')
 
-        # chunk_size = st.sidebar.slider(':blue[Chunk Size]', min_value=50, max_value=1000, value = 200, step = 10, help = 'Determines the size of each chunk that the text will be split into.' , disabled=not api_key)
-        # chunk_overlap = st.sidebar.slider(':blue[Chunk Overlap]', min_value=0, max_value=100, value=20, step=10, help = 'This parameter determines the number of tokens that will overlap between each chunk.', disabled=not api_key)
+    temp = st.sidebar.slider(':blue[Temperature]', min_value=0.0, max_value=1.0, value = 0.5, step = 0.01, help = 'Controls randomness in the response, use lower to be more deterministic.' , disabled=not api_key)
+    m_tokens = st.sidebar.slider(':blue[Max Tokens]', min_value=100, max_value=4096, value=4096, step=10, help = 'Limit the maximum output tokens for the model response.', disabled=not api_key)
+    t_p = st.sidebar.slider(':blue[Top P]', min_value=0.01, max_value=1.0, value=1.0, step=0.01, help = 'Limit the maximum output tokens for the model response.', disabled=not api_key)
 
 col1, col2 = st.columns(spec=[0.55, 0.45], gap="medium")
 
@@ -152,6 +153,9 @@ with col1:
                         },
                     ],
                     model=model_name,
+                    temperature=temp,
+                    max_tokens=m_tokens,
+                    top_p=t_p
                 )
 
                 # Display response
