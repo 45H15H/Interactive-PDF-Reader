@@ -2,7 +2,6 @@ import streamlit as st
 import tempfile
 import os
 import base64
-# from PyPDF2 import PdfReader
 import time
 
 import base64
@@ -19,7 +18,7 @@ if 'messages' not in st.session_state:
 endpoint = "https://models.inference.ai.azure.com"
 model_name = "gpt-4o"
 
-# Page configuation
+# Page configuration
 st.set_page_config(
     page_title="Interactive Reader",
     page_icon="📚",
@@ -37,8 +36,8 @@ with st.sidebar:
                             #   disabled=not api_key,
                               use_container_width=True)
         st.caption(
-        "To use this app, you need an API key. "
-        "You can get one [here](https://github.com/marketplace/models)."
+            "To use this app, you need an API key. "
+            "You can get one [here](https://github.com/marketplace/models)."
         )
 
         if not api_key:
@@ -61,11 +60,12 @@ with col1:
     st.header("Interactive Reader :open_book:")
 
     with st.expander("Your Documents"):
-        uploaded_files = st.file_uploader(label="Upload your PDF here and click on 'Process'",
-                               type=["pdf"],
-                               accept_multiple_files=True,
-                               disabled=not api_key
-                               )
+        uploaded_files = st.file_uploader(
+            label="Upload your PDF here and click on 'Process'",
+            type=["pdf"],
+            accept_multiple_files=True,
+            disabled=not api_key
+        )
         
     # Get total pages when file is uploaded
     if uploaded_files:
@@ -74,14 +74,12 @@ with col1:
                 st.session_state.total_pages = doc.page_count
             uploaded_file.seek(0)  # Reset file pointer
     
-    # Update number input with max value validation
     if st.session_state.total_pages > 0:
-        number = st.number_input(
-            "Enter page number",
-            min_value=1,
-            max_value=st.session_state.total_pages,
-            value=1,
-            help=f"Enter a page number between 1 and {st.session_state.total_pages}"
+        page_numbers = st.multiselect(
+            "Select page numbers",
+            options=list(range(1, st.session_state.total_pages + 1)),
+            default=[1],
+            help=f"Select page numbers between 1 and {st.session_state.total_pages}"
         )
     else:
         st.info("Upload a PDF to view pages")
@@ -102,20 +100,22 @@ with col1:
             st.write(prompt)
         
         if uploaded_files:
-            # Process documents
+            images = []
             for uploaded_file in uploaded_files:
                 fd, path = tempfile.mkstemp()
                 with os.fdopen(fd, 'wb') as tmp:
                     tmp.write(uploaded_file.getvalue())
 
                 pdf_document = fitz.open(path)
-                page = pdf_document.load_page(number - 1)
-                pix = page.get_pixmap()
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                
-                buffer = io.BytesIO()
-                img.save(buffer, format="PNG")
-                base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                for page_number in page_numbers:
+                    page = pdf_document.load_page(page_number - 1)
+                    pix = page.get_pixmap()
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="PNG")
+                    base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    images.append(base64_image)
 
                 # Initialize OpenAI client
                 client = OpenAI(
@@ -138,13 +138,16 @@ with col1:
                             "role": "user",
                             "content": [
                                 {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}",
-                                        "detail": "low"
-                                    },
-                                },
+                                *[
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{image}",
+                                            "detail": "low"
+                                        },
+                                    }
+                                    for image in images
+                                ],
                             ],
                         },
                     ],
@@ -190,7 +193,3 @@ with col2:
 
             # Delete the temporary file when done
             os.remove(path)
-
-
-
-
